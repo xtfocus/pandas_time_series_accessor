@@ -23,10 +23,10 @@ class TimeSeriesAccessor:
                 self._validate(pandas_obj)
                 self._obj = pandas_obj
             except ValueError as e:
-                logger.warning("DataFrame not in timeseries format, attempting convesion")
+                logger.warning("DataFrame not in timeseries format, attempting convesion using default format='%m/%d/%Y'")
                 self._obj = TimeSeriesAccessor.transform_investing_historical(pandas_obj)
         except:
-            message = "Conversion failed. Your data must have a Date column..."
+            message = "Conversion failed. Please set a 'Date' column of type pandas datetime as the index"
             logger.error(message)
             raise ValueError(message)
         
