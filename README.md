@@ -1,5 +1,3 @@
-# pandas_time_series_accessor
-
 # TimeSeriesAccessor for Pandas
 
 The `TimeSeriesAccessor` is a custom accessor for pandas that provides additional functionality for working with time series data.
