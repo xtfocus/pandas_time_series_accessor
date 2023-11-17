@@ -1,4 +1,5 @@
 import pandas as pd
+from typing import List
 import matplotlib.pyplot as plt
 import missingno as msno
 import logging
@@ -8,49 +9,105 @@ logger = logging.getLogger(__name__)
 @pd.api.extensions.register_dataframe_accessor("ts")
 class TimeSeriesAccessor:
 
-    def __init__(self, pandas_obj):
+    def __init__(self, pandas_obj: pd.DataFrame) -> None:
+        """
+        Initialize the TimeSeriesAccessor.
+
+        Parameters:
+        -----------
+        pandas_obj : pd.DataFrame
+            The DataFrame to be accessed.
+        """
         try:
             try:
                 self._validate(pandas_obj)
+                self._obj = pandas_obj
             except ValueError as e:
                 logger.warning("DataFrame not in timeseries format, attempting convesion")
                 self._obj = TimeSeriesAccessor.transform_investing_historical(pandas_obj)
         except:
-            message = "Conversion failed. Doublecheck your 'Date' column..."
+            message = "Conversion failed. Your data must have a Date column..."
             logger.error(message)
             raise ValueError(message)
         
     @staticmethod
-    def _validate(obj) -> None:
+    def _validate(obj: pd.DataFrame) -> None:
         """
         Check if the indexes of all DataFrames have the pandas datetime format.
         Raises a ValueError if not.
+
+        Parameters:
+        -----------
+        obj : pd.DataFrame
+            The DataFrame to be validated.
         """
         if not pd.api.types.is_datetime64_any_dtype(obj.index):
             raise ValueError(f"Index is not in pandas datetime format.")
 
-    def find_biggest_gap(self) -> None:
+
+    def _find_gaps(self) -> pd.DataFrame:
         """
-        Find the biggest gap (consecutive days missing) in the DataFrame.
+        Find normal and business gaps in data.
 
         Returns:
         --------
-        int
-            Number of consecutive days missing in the biggest gap.
-        tuple
-            Date range of the biggest gap (start date, end date).
+        pd.DataFrame
+            DataFrame containing information about consecutive gaps.
         """
         consecutive_gaps = self._obj.index.to_series().diff().dt.days - 1
-        biggest_gap = consecutive_gaps.max()
+        
+        consecutive_gaps = (pd.
+                            DataFrame(consecutive_gaps).
+                            rename(columns={'Date':'days_ago'}).
+                            reset_index().
+                            dropna().
+                            query('days_ago > 0')).dropna()
+        
+        consecutive_gaps['days'] = consecutive_gaps.apply(lambda row: pd.date_range(end=row['Date'], periods=int(row['days_ago']), freq='D'), axis=1)
+        
+        consecutive_gaps['weekday'] = consecutive_gaps['days'].apply(lambda x: [i.strftime("%A") for i in x])
+        consecutive_gaps['logic_mask'] = (consecutive_gaps['weekday']
+                                          .apply(lambda x: [
+                                              (i not in ['Sunday', 'Monday']) for i in x
+                                          ]
+                                                )
+                                         )
+        consecutive_gaps['business_days'] = consecutive_gaps.apply(lambda x: [value for value, condition in zip(x['days'], x['logic_mask']) if condition], axis=1)
+        consecutive_gaps['business_weekday'] = consecutive_gaps['weekday'].apply(lambda x:[i for i in x if i not in ['Sunday', 'Monday']])
+        consecutive_gaps['business_days_ago'] = consecutive_gaps['business_weekday'].apply(len)
+        return consecutive_gaps
+        
+        
+    def find_biggest_gaps(self, business: bool = False, k: int = 5) -> pd.DataFrame:
+        """
+        Find the biggest gap (consecutive days missing) in the DataFrame.
 
-        # Find the date range of the biggest gap
-        biggest_gap_start = self._obj.index.to_series().loc[
-            consecutive_gaps.idxmax()]
-        biggest_gap_end = self._obj.index.to_series().loc[
-            consecutive_gaps.idxmax() + pd.DateOffset(days=biggest_gap)]
-        date_range_biggest_gap = (biggest_gap_start, biggest_gap_end)
+        Parameters:
+        -----------
+        business : bool, optional (default=False)
+            If True, only report gaps caused by consecutive business working days.
+        k : int, optional (default=5)
+            Number of top gaps to report.
 
-        return biggest_gap, date_range_biggest_gap
+        Returns:
+        --------
+        pd.DataFrame
+            DataFrame showing top k biggest gaps.
+        """
+        consecutive_gaps = self._find_gaps()
+        if business:
+            gaps = consecutive_gaps[['business_days', 'business_weekday']].rename(columns={'business_days':'days', 'business_weekday':'weekday'})
+        else:
+            gaps = consecutive_gaps[['days', 'weekday']]
+        gaps = gaps.reset_index(drop=True)
+        
+        print(gaps.columns)
+            
+        gaps['length'] = gaps['days'].apply(len)
+        gaps = gaps.sort_values("length", ascending=False)
+        
+        return gaps.head(k)            
+
 
     def perform_eda(self) -> None:
         """
@@ -58,31 +115,35 @@ class TimeSeriesAccessor:
         Report the start and end period of each data source.
         Use df.info() to show the number of nulls in each column.
         """
+        
+        print("===OVERVIEW===")
 
         print(f"Start Date: {self._obj.index.min()}")
         print(f"End Date: {self._obj.index.max()}")
         print("\nInfo:")
         print(self._obj.info())
         
-        self._obj.hist(bins=10);
+        self._obj.hist(bins=10)
         plt.tight_layout()
 
+        print("===MISSING ROWS===")
         msno.matrix(self._obj)
 
         # Find the biggest gap in the data
-        biggest_gap, date_range_biggest_gap = self.find_biggest_gap()
-        print(f"\nBiggest Gap in Data:")
-        print(f"Consecutive days missing: {biggest_gap}")
-        print(f"Date Range of the Biggest Gap: {date_range_biggest_gap}")
+        print("Business gaps:")
+        print(self.find_biggest_gaps(business=True))
+        
+        print("All days gaps:")
+        print(self.find_biggest_gaps(business=False))
         
         
-    def fill_forward(self, business_days=True):
+    def fill_forward(self, business: bool = True) -> pd.DataFrame:
         """
         Fill forward missing values in the DataFrame.
 
         Parameters:
         -----------
-        business_days : bool, optional (default=True)
+        business : bool, optional (default=True)
             If False, fill forward for all days. If True, fill forward only for business days.
 
         Returns:
@@ -90,15 +151,15 @@ class TimeSeriesAccessor:
         pd.DataFrame
             DataFrame with missing values filled forward.
         """
-        if not business_days:
-            filled_df = self._obj.ffill()
+        if not business:
+            filled_df = self._obj.resample('D').ffill()
         else:
             # Fill forward only for business days
             filled_df = self._obj.resample('B').ffill()
 
         return filled_df
 
-    def remove_weekend_days(self):
+    def remove_weekend_days(self) -> pd.DataFrame:
         """
         Remove weekend days (Saturday and Sunday) from the DataFrame.
 
@@ -113,15 +174,14 @@ class TimeSeriesAccessor:
         return df_no_weekends
     
     
-    @staticmethod
-    def report_missing_days(self, business=True) -> None:
+    def report_missing_days(self, business=True) -> pd.Series:
         """
         Report missing days in a DataFrame.
         Include value counts of weekdays for the missing days.
 
         Parameters:
         -----------
-        business_days : bool, optional (default=True)
+        business: bool, optional (default=True)
             If True, reports only for missing business days.
 
         Returns:
@@ -153,6 +213,8 @@ class TimeSeriesAccessor:
             print(missing_weekday_counts)
         else:
             print("No missing days.")
+            
+        return (missing_days.to_series())
             
     
     @staticmethod
