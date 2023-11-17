@@ -14,7 +14,7 @@ pip install pandas matplotlib missingno
 
 ```python3
 import pandas as pd
-from YourModule import TimeSeriesAccessor  # Replace YourModule with the actual module where TimeSeriesAccessor is defined
+from TimeSeries import TimeSeriesAccessor  
 
 # Load your time series data into a DataFrame
 data = {'Date': ['2022-01-01', '2022-01-02', '2022-01-05', '2022-01-06'],
