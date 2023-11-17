@@ -99,10 +99,8 @@ class TimeSeriesAccessor:
             gaps = consecutive_gaps[['business_days', 'business_weekday']].rename(columns={'business_days':'days', 'business_weekday':'weekday'})
         else:
             gaps = consecutive_gaps[['days', 'weekday']]
-        gaps = gaps.reset_index(drop=True)
         
-        print(gaps.columns)
-            
+        gaps = gaps.reset_index(drop=True)            
         gaps['length'] = gaps['days'].apply(len)
         gaps = gaps.sort_values("length", ascending=False)
         

@@ -23,28 +23,14 @@ df = pd.DataFrame(data)
 df['Date'] = pd.to_datetime(df['Date'])
 df.set_index('Date', inplace=True)
 
-# Create TimeSeriesAccessor instance
-ts_accessor = df.ts
-
-# Find and display the biggest gaps in the data
-biggest_gaps = ts_accessor.find_biggest_gaps()
-print("Biggest Gaps:")
-print(biggest_gaps)
-
-# Perform exploratory data analysis
-ts_accessor.perform_eda()
+# EDA: missing rows and biggest gaps, business days or any days
+df.ts.perform_eda()
 
 # Fill forward missing values for business days
 filled_df = ts_accessor.fill_forward(business=True)
 
-# Remove weekend days from the DataFrame
-df_no_weekends = ts_accessor.remove_weekend_days()
-
-# Report missing days and weekdays
-missing_days = ts_accessor.report_missing_days(business=True)
-print("Missing Days:")
-print(missing_days)
-
+# Show biggest 2 business days gaps
+df.ts.find_biggest_gaps(business=True, k=2)
 ```
 
 ## Functions
