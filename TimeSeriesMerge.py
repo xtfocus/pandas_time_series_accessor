@@ -33,7 +33,7 @@ class DataMerger:
 
     merge_inner():
         Perform an inner join on all DataFrames and report key statistics.
-        
+
     # Example Usage:
     dataframes_dict = {'df1': df1, 'df2': df2, 'df3': df3}
     merger = DataMerger(dataframes_dict)
@@ -58,7 +58,7 @@ class DataMerger:
                 raise ValueError(
                     f"Index of DataFrame {name} is not in pandas datetime format."
                 )
-                
+
             self.dataframes[name] = df.add_suffix(f'_{name}')
 
     def perform_eda(self) -> None:
@@ -152,127 +152,3 @@ class DataMerger:
         return df.set_index('Date')
 
 
-class TimeSeriesPreprocessor:
-    def __init__(self, name, df):
-        self.name = name
-        self.df = df.sort_index()  # Sort the DataFrame by index during initialization
-
-    def perform_eda(self):
-        """
-        Perform Exploratory Data Analysis for the provided DataFrame.
-
-        Returns:
-        --------
-        None
-        """
-        print(f"\nExploratory Data Analysis for {self.name}:")
-        print(f"Start Date: {self.df.index.min()}")
-        print(f"End Date: {self.df.index.max()}")
-        print("\nInfo:")
-        print(self.df.info())
-
-        msno.matrix(self.df)
-
-        # Find the biggest gap in the data
-        biggest_gap, date_range_biggest_gap = self.find_biggest_gap()
-        print(f"\nBiggest Gap in Data:")
-        print(f"Consecutive days missing: {biggest_gap}")
-        print(f"Date Range of the Biggest Gap: {date_range_biggest_gap}")
-
-    def find_biggest_gap(self):
-        """
-        Find the biggest gap (consecutive days missing) in the DataFrame.
-
-        Returns:
-        --------
-        int
-            Number of consecutive days missing in the biggest gap.
-        tuple
-            Date range of the biggest gap (start date, end date).
-        """
-        consecutive_gaps = self.df.index.to_series().diff().dt.days - 1
-        biggest_gap = consecutive_gaps.max()
-
-        # Find the date range of the biggest gap
-        biggest_gap_start = self.df.index.to_series().loc[consecutive_gaps.idxmax()]
-        biggest_gap_end = self.df.index.to_series().loc[consecutive_gaps.idxmax() + pd.DateOffset(days=biggest_gap)]
-        date_range_biggest_gap = (biggest_gap_start, biggest_gap_end)
-
-        return biggest_gap, date_range_biggest_gap
-
-    def fill_forward(self, all_days=True):
-        """
-        Fill forward missing values in the DataFrame.
-
-        Parameters:
-        -----------
-        all_days : bool, optional (default=True)
-            If True, fill forward for all days. If False, fill forward only for business days.
-
-        Returns:
-        --------
-        pd.DataFrame
-            DataFrame with missing values filled forward.
-        """
-        if all_days:
-            filled_df = self.df.ffill()
-        else:
-            # Fill forward only for business days
-            filled_df = self.df.resample('B').ffill()
-
-        return filled_df
-
-    def remove_weekend_days(self):
-        """
-        Remove weekend days (Saturday and Sunday) from the DataFrame.
-
-        Returns:
-        --------
-        pd.DataFrame
-            DataFrame with weekend days removed.
-        """
-        # Remove rows where the day of the week is Saturday (5) or Sunday (6)
-        df_no_weekends = self.df[self.df.index.to_series().dt.dayofweek < 5]
-
-        return df_no_weekends
-
-    @staticmethod
-    def report_missing_days(df: pd.DataFrame, business=True) -> None:
-        """
-        Report missing days in a DataFrame.
-        Include value counts of weekdays for the missing days.
-
-        Parameters:
-        -----------
-        df : pd.DataFrame
-            The DataFrame with 'Date' as the index.
-
-        Returns:
-        --------
-        None
-        """
-        # Ensure 'Date' is in the correct datetime format
-        df['Date'] = pd.to_datetime(df.index)
-
-        if business:
-            freq = 'B'
-        else:
-            freq = 'D'
-        # Create a date range of all working days in the DataFrame's date range
-        all_days = pd.date_range(start=df['Date'].min(), end=df['Date'].max(), freq=freq)
-
-        # Find missing working days
-        missing_days = all_days.difference(df['Date'])
-
-        # Report missing working days and value counts of weekdays
-        if not missing_days.empty:
-            print("Missing days:")
-            print(missing_days)
-
-            # Calculate value counts of weekdays for missing working days
-            missing_weekday_counts = pd.Series(missing_days.to_series().dt.day_name()).value_counts()
-
-            print("\nValue counts of weekdays for missing days:")
-            print(missing_weekday_counts)
-        else:
-            print("No missing days.")
