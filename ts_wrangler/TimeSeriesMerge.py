@@ -1,6 +1,7 @@
 import pandas as pd
 import missingno as msno
 from typing import Dict, Union
+from matplotlib import pyplot as plt
 
 
 class DataMerger:
@@ -125,30 +126,35 @@ class DataMerger:
         """
         msno.matrix(df)
 
-    @staticmethod
-    def transform_investing_historical(df: pd.DataFrame, format='%m/%d/%Y') -> pd.DataFrame:
+
+    def visualize_overlap_stacked(self):
         """
-        Transform an Investing.com historical DataFrame.
-
-        Parameters:
-        -----------
-        df : pd.DataFrame
-            The DataFrame containing Investing.com historical data.
-
-        Returns:
-        --------
-        pd.DataFrame
-            Transformed DataFrame with adjusted date format, 'Change %' as float, and added 'Weekday' column.
+        Visualize the time overlap between DataFrames in the DataMerger object with stacked lines.
         """
-        assert 'Date' in df.columns, "The 'Date' column is missing."
+        df_names = list(self.dataframes.keys())
 
-        # Convert the 'Date' column to date format
-        df['Date'] = pd.to_datetime(df['Date'], format=format)
+        plt.style.use('ggplot')  # Set the theme to 'ggplot'
+        fig, ax = plt.subplots(figsize=(8, len(self.dataframes)))
 
-        if "Change %" in df.columns:
-            # Convert the 'Change' column to float (remove the % sign)
-            df['Change %'] = df['Change %'].str.rstrip('%').astype('float')
+        for i, name in enumerate(df_names):
+            start_date = self.dataframes[name].index.min()
+            end_date = self.dataframes[name].index.max()
+            ax.plot([start_date, end_date], [i, i], label=name, marker='o', linestyle='-')
 
-        return df.set_index('Date')
+            # Annotate start date
+            ax.annotate(start_date.strftime('%Y-%m-%d'), (start_date, i), textcoords="offset points", xytext=(0, 10), ha='center')
 
+            # Annotate end date
+            ax.annotate(end_date.strftime('%Y-%m-%d'), (end_date, i), textcoords="offset points", xytext=(0, 10), ha='center')
 
+        ax.set_yticks(range(len(df_names)))
+        ax.set_yticklabels(df_names)
+
+        # Remove bounding box
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+
+        plt.title('Time Overlap Visualization (Stacked Lines)')
+        plt.show()
