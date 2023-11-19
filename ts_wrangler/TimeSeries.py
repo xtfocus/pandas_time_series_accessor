@@ -181,18 +181,18 @@ class TimeSeriesAccessor:
         --------
         None
         """
-        # Ensure 'Date' is in the correct datetime format
-        self._obj['Date'] = pd.to_datetime(self._obj.index)
+        dates = self._obj.index
 
         if business:
             freq = 'B'
         else:
             freq = 'D'
+
         # Create a date range of all working days in the DataFrame's date range
-        all_days = pd.date_range(start=self._obj['Date'].min(), end=self._obj['Date'].max(), freq=freq)
+        all_days = pd.date_range(start=dates.min(), end=dates.max(), freq=freq)
 
         # Find missing working days
-        missing_days = all_days.difference(self._obj['Date'])
+        missing_days = all_days.difference(dates)
 
         # Report missing working days and value counts of weekdays
         if not missing_days.empty:
